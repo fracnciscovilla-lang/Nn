@@ -1,0 +1,52 @@
+import java.net.URI;
+import java.net.http.*;
+import java.time.Instant;
+import org.json.*;
+
+public class VirusTotalChecker {
+
+    private static final String VT_API_KEY = "YOUR_API_KEY";
+    private static final String VT_FILE_ENDPOINT = "https://www.virustotal.com/api/v3/files/";
+
+    public static JSONObject getVirusTotalReport(String sha256) throws Exception {
+        HttpClient client = HttpClient.newHttpClient();
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(VT_FILE_ENDPOINT + sha256))
+            .header("x-apikey", VT_API_KEY)
+            .GET()
+            .build();
+
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() == 200) {
+            return new JSONObject(response.body());
+        } else {
+            System.err.println("VT API error: " + response.statusCode() + " → " + response.body());
+            return null;
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
+        // Example hash (replace with the SHA-256 you computed)
+        String hash = "e3b0c44298fc1c149afbf4c8996fb924..."; 
+        JSONObject vtReport = getVirusTotalReport(hash);
+
+        if (vtReport != null) {
+            System.out.println(vtReport.toString(2));
+
+            // Parse the relevant parts, e.g. analysis stats:
+            JSONObject data = vtReport.getJSONObject("data");
+            JSONObject attributes = data.getJSONObject("attributes");
+            JSONObject stats = attributes.getJSONObject("last_analysis_stats");
+
+            int malicious = stats.optInt("malicious", 0);
+            int harmless = stats.optInt("harmless", 0);
+            int suspicious = stats.optInt("suspicious", 0);
+
+            System.out.printf("VT Results: malicious=%d, harmless=%d, suspicious=%d\n",
+                malicious, harmless, suspicious);
+
+            long lastAnalysisTs = attributes.getLong("last_analysis_date");
+            System.out.println("Last analysis: " + Instant.ofEpochSecond(lastAnalysisTs));
+        }
+    }
+}
